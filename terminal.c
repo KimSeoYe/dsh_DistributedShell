@@ -69,7 +69,6 @@ listen_cmd ()
 {  
     while(1) {
         int cmd_len = recv_int(sock_fd) ;
-        printf("> len: %d\n", cmd_len) ;
         cmd = recv_n_data(sock_fd, cmd_len) ; 
         printf("> cmd: %s\n", cmd) ;
     }
@@ -79,7 +78,7 @@ void *
 worker ()
 {
     while (1) {
-        char * cmd = recv_string(sock_fd) ;
+        // char * cmd = recv_string(sock_fd) ;
         char ** cmd_argv = parse_cmd(cmd) ;
 
         if (pipe(pipes) != 0) {
