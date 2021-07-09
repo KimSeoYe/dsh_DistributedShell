@@ -22,6 +22,8 @@ typedef struct _node {
 	struct _node * next ;
 } Node ;
 
+int listen_fd ;
+
 Node clients = {0, 0x0};
 
 int turn = -1 ;
@@ -31,11 +33,9 @@ print_clients ()
 {
     Node* itr = 0x0;
     printf("============ clients ==============\n");
-    pthread_mutex_lock(&m);
     for(itr = clients.next; itr != 0x0; itr = itr->next) {
         printf("%d\n", itr->fd);
     }
-    pthread_mutex_unlock(&m);
 	printf("0 to exit\n") ;
     printf("===================================\n");
 }
@@ -77,6 +77,7 @@ append (int fd)
     pthread_mutex_unlock(&m);
 }
 
+// Todo. check if the connection w/ client failed -> rm target
 void
 remove_target (int fd)
 {
@@ -103,59 +104,79 @@ close_all_sock ()
         close(itr->fd) ; 
     }
     pthread_mutex_unlock(&m) ;
+	close(listen_fd) ;
 }
 
+void *
+command_mode() 
+{
+	printf(">> Enter ID: ") ;
+	int id ;
+	char blank ;
+	scanf("%d", &id) ;
+	scanf("%c", &blank) ;
+	printf("> ID: %d\n", id) ;
+	
+	if (id == 0) {
+		close_all_sock() ;
+		exit(0) ;
+	}
+	else if (! is_exist(id)) {
+		printf("Invalid input\n") ;
+	}
+	else {
+		pthread_mutex_lock(&m) ;
+		turn = id ;
+		pthread_mutex_unlock(&m) ;
+	}
+}
 
 void
 handler(int sig)
 {
 	if (sig == SIGINT) {
 		print_clients() ;
-
-		int id ;
-		scanf("%d", &id) ;
-		printf(">> %d\n", id) ;
-		
-		if (id == 0) {
-			close_all_sock() ;
-			exit(0) ;
-		}
-		else if (! is_exist(id)) {
-			printf("Invalid input\n") ;
-		}
-		else {
-			pthread_mutex_lock(&m) ;
-			turn = id ;
-			pthread_mutex_unlock(&m) ;
-		}
+		pthread_mutex_lock(&m) ;
+		turn = -1 ;
+		printf("> turn in handler: %d\n", turn) ;
+		pthread_mutex_unlock(&m) ;
+		// command_mode() ;
 	}
 }
 
 void *
 ui_worker ()
 {
-	signal(SIGINT, handler) ;
-	while (turn == -1) ;
-
-	printf("> turn: %d\n", turn) ;
+	// while (turn == -1) ;
+	// printf("> turn: %d\n", turn) ;
 
 	while (1) {
-		char buffer[1024] = {0} ;
-		char c ;
-		int i ;
-		for (i = 0; (c = getc(stdin)) != '\n'; i++) {
-			buffer[i] = c ;
+		
+		printf("> turn in us_worker: %d\n", turn) ;
+		if (turn == -1) {
+			printf("command mode\n") ;
+			command_mode() ;
 		}
-		buffer[i] = 0x0 ;
-		int len = i + 1 ;
-		// printf("> cmd: %s\n", buffer) ;
+		else {
+			printf("user mode\n") ;
+			printf(">> Enter cmd: ") ;
+			char buffer[1024] = {0} ;
+			char c ;
+			int i ;
+			for (i = 0; (c = getc(stdin)) != '\n'; i++) {
+				buffer[i] = c ;
+			}
+			buffer[i] = 0x0 ;
+			int len = i + 1 ;
+			printf("> cmd: %s\n", buffer) ;
 
-		pthread_mutex_lock(&m) ;
-		send_int(turn, len) ;
-		send_n_data(turn, buffer, len) ;
-		pthread_mutex_unlock(&m) ;
+			pthread_mutex_lock(&m) ;
+			send_int(turn, len) ;
+			send_n_data(turn, buffer, len) ;
+			pthread_mutex_unlock(&m) ;
+
+		}
 	}
-
 }
 
 void recv_and_print (int sock)
@@ -182,7 +203,8 @@ worker (void * ptr)
 	append(conn) ;
 
     while (1) {
-		recv_and_print(conn) ;
+		if (conn == turn) 
+			recv_and_print(conn) ;
     }
 
     close(conn) ;
@@ -192,8 +214,10 @@ worker (void * ptr)
 int 
 main(int argc, char const *argv[]) 
 { 
-	// signal(SIGINT, handler) ;
-	int listen_fd, new_socket ; 
+	signal(SIGINT, handler) ;
+
+	// int listen_fd ;	// Todo. listen_fd -> global?
+	int new_socket ; 
 	struct sockaddr_in address; 
 	int opt = 1; 
 	int addrlen = sizeof(address); 
@@ -209,7 +233,7 @@ main(int argc, char const *argv[])
 	memset(&address, 0, sizeof(address)); 
 	address.sin_family = AF_INET; 
 	address.sin_addr.s_addr = INADDR_ANY /* the localhost*/ ; 
-	address.sin_port = htons(8080); 
+	address.sin_port = htons(8999); 
 	if (bind(listen_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
 		perror("bind failed : "); 
 		exit(1); 
