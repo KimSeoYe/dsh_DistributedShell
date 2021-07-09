@@ -18,29 +18,8 @@ pthread_cond_t c = PTHREAD_COND_INITIALIZER ;
 
 int sock_fd ;
 
-// char * cmd = 0x0 ;
-char cmd[1024] = "" ;
+char cmd[64] = "" ;   // Todo. pointer?
 int cmd_in = 0 ;
-
-void *
-listen_cmd ()
-{  
-    // https://www.joinc.co.kr/w/man/3/pthread_cancel 
-    
-    while(1) {
-        int cmd_len = recv_int(sock_fd) ;
-
-        pthread_mutex_lock(&m) ;
-        recv_n_data(sock_fd, cmd, cmd_len) ;
-        printf("> cmd: %s\n", cmd) ;
-        pthread_mutex_unlock(&m) ;
-
-        pthread_mutex_lock(&m) ;
-        cmd_in = 1 ;
-        pthread_cond_signal(&c) ;
-        pthread_mutex_unlock(&m) ;
-    }
-}
 
 char **
 parse_cmd(char * cmd)
@@ -70,6 +49,7 @@ parse_cmd(char * cmd)
 }
 
 int pipes[2] ;
+pid_t child_pid ;
 
 void
 child_proc (char ** cmd_argv)
@@ -100,7 +80,6 @@ void *
 worker ()
 {
     while (1) {
-        // char * cmd = recv_string(sock_fd) ;
         char ** cmd_argv = parse_cmd(cmd) ;
 
         if (pipe(pipes) != 0) {
@@ -108,7 +87,7 @@ worker ()
             exit(1) ;
         }
 
-        pid_t child_pid = fork() ;
+        child_pid = fork() ;
         if (child_pid < 0) {
             perror("fork") ;
             exit(1) ;
@@ -130,6 +109,32 @@ worker ()
     }
 }
 
+void *
+listen_cmd ()
+{  
+    while(1) {
+        int cmd_len = recv_int(sock_fd) ;
+        char recv_cmd[64] ;
+
+        recv_n_data(sock_fd, recv_cmd, cmd_len) ;
+        printf("> cmd: %s\n", recv_cmd) ;
+
+        if (strcmp(recv_cmd, "$") == 0) {
+            kill(child_pid, SIGINT) ;
+        }
+
+        pthread_mutex_lock(&m) ;
+        if (cmd_in == 0) {
+            cmd_in = 1 ;
+            strcpy(cmd, recv_cmd) ;
+            pthread_cond_signal(&c) ;
+        }
+        else {
+            // 이미 실행중인 경우 -> 무시하도록?
+        }
+        pthread_mutex_unlock(&m) ;
+    }
+}
 
 void
 handler (int sig)
@@ -161,7 +166,7 @@ main(int argc, char const *argv[])
 
 	memset(&serv_addr, 0, sizeof(serv_addr)); 
 	serv_addr.sin_family = AF_INET; 
-	serv_addr.sin_port = htons(8989); 
+	serv_addr.sin_port = htons(8080); 
 	if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
 		perror("inet_pton failed : ") ; 
 		exit(1) ;
@@ -172,15 +177,13 @@ main(int argc, char const *argv[])
 		exit(1) ;
 	}
 
-
-
-    pthread_t cmd_thr ;
+    pthread_t cmd_thr ; 
     if (pthread_create(&cmd_thr, NULL, listen_cmd, NULL) != 0) {
         perror("pthread_create: ") ;
         exit(1) ;
     }
 
-    pthread_t w_thr ;
+    pthread_t w_thr ; 
     if (pthread_create(&w_thr, NULL, worker, NULL) != 0) {
         perror("pthread_create: ") ;
         exit(1) ;

@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "network.h"
 
@@ -16,11 +17,124 @@
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER ;
 pthread_cond_t c = PTHREAD_COND_INITIALIZER ;
 
+typedef struct _node {
+	int fd ;
+	struct _node * next ;
+} Node ;
+
+Node clients = {0, 0x0};
+
 int turn = -1 ;
+
+void 
+print_clients () 
+{
+    Node* itr = 0x0;
+    printf("============ clients ==============\n");
+    pthread_mutex_lock(&m);
+    for(itr = clients.next; itr != 0x0; itr = itr->next) {
+        printf("%d\n", itr->fd);
+    }
+    pthread_mutex_unlock(&m);
+	printf("0 to exit\n") ;
+    printf("===================================\n");
+}
+
+int
+is_exist (int fd)
+{
+    int exist = 0 ;
+    Node * itr = 0x0 ;
+
+    pthread_mutex_lock(&m) ;
+    for (itr = clients.next; itr != 0x0; itr = itr->next) {
+        if (itr->fd == fd) {
+            exist = 1 ;
+            break ;
+        }
+    }
+    pthread_mutex_unlock(&m) ;
+
+    return exist ;
+}
+
+void
+append (int fd)
+{
+	Node * new_node = (Node *) malloc(sizeof(Node) * 1) ;
+	new_node->next = 0x0 ;
+	new_node->fd = fd ;
+
+	Node* itr = 0x0, *curr = 0x0;
+    
+	pthread_mutex_lock(&m);
+
+    for (itr = &clients ; itr != 0x0 ; itr = itr->next) {
+        curr = itr;
+    }
+    curr->next = new_node;
+
+    pthread_mutex_unlock(&m);
+}
+
+void
+remove_target (int fd)
+{
+	Node * itr = 0x0 ;
+
+	Node * prev = &clients ;
+	for(itr = clients.next; itr != 0x0; itr = itr->next) {
+		if(itr->fd == fd) {
+			prev->next = itr->next ;
+			// free(itr) ;	Todo.
+			break ;
+		}
+		prev = itr ;
+    }
+}
+
+void
+close_all_sock ()
+{
+	Node * itr = 0x0 ;
+
+    pthread_mutex_lock(&m) ;
+    for (itr = clients.next; itr != 0x0; itr = itr->next) {
+        close(itr->fd) ; 
+    }
+    pthread_mutex_unlock(&m) ;
+}
+
+
+void
+handler(int sig)
+{
+	if (sig == SIGINT) {
+		print_clients() ;
+
+		int id ;
+		scanf("%d", &id) ;
+		printf(">> %d\n", id) ;
+		
+		if (id == 0) {
+			close_all_sock() ;
+			exit(0) ;
+		}
+		else if (! is_exist(id)) {
+			printf("Invalid input\n") ;
+		}
+		else {
+			pthread_mutex_lock(&m) ;
+			turn = id ;
+			pthread_mutex_unlock(&m) ;
+		}
+	}
+}
 
 void *
 ui_worker ()
 {
+	// signal(SIGINT, handler) ;
 	while (turn == -1) ;
 
 	printf("> turn: %d\n", turn) ;
@@ -34,14 +148,12 @@ ui_worker ()
 		}
 		buffer[i] = 0x0 ;
 		int len = i + 1 ;
-		printf("> cmd: %s\n", buffer) ;
+		// printf("> cmd: %s\n", buffer) ;
 
-		// Q. lock..? -> 여기서 m을 잡으면 recv하는 thread와 같은 lock을 잡아서 deadlock에 걸리는 것 같다.
-		// 그냥 보내는게 안전한가.......?
-		// pthread_mutex_lock(&m) ;
+		pthread_mutex_lock(&m) ;
 		send_int(turn, len) ;
 		send_n_data(turn, buffer, len) ;
-		// pthread_mutex_unlock(&m) ;
+		pthread_mutex_unlock(&m) ;
 	}
 
 }
@@ -66,15 +178,11 @@ worker (void * ptr)
 {
 	int conn = * ((int *) ptr) ;
 
-	// Todo. 
-	pthread_mutex_lock(&m) ;
-	turn = conn ;
-	pthread_mutex_unlock(&m) ;
+	printf("> %d connected\n", conn) ;
+	append(conn) ;
 
     while (1) {
-		pthread_mutex_lock(&m) ;
-        recv_and_print(turn) ;
-		pthread_mutex_unlock(&m) ;
+        recv_and_print(conn) ;
     }
 
     close(conn) ;
@@ -84,6 +192,9 @@ worker (void * ptr)
 int 
 main(int argc, char const *argv[]) 
 { 
+	signal(SIGINT, handler) ;
+
+
 	int listen_fd, new_socket ; 
 	struct sockaddr_in address; 
 	int opt = 1; 
@@ -100,7 +211,7 @@ main(int argc, char const *argv[])
 	memset(&address, 0, sizeof(address)); 
 	address.sin_family = AF_INET; 
 	address.sin_addr.s_addr = INADDR_ANY /* the localhost*/ ; 
-	address.sin_port = htons(8989); 
+	address.sin_port = htons(8080); 
 	if (bind(listen_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
 		perror("bind failed : "); 
 		exit(1); 
