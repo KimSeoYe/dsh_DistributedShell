@@ -105,29 +105,37 @@ close_all_sock ()
     pthread_mutex_unlock(&m) ;
 }
 
+void
+command_mode ()
+{
+	print_clients() ;
+
+	int id ;
+	printf(">> id: ") ;
+	scanf("%d", &id) ;
+	
+	if (id == 0) {
+		close_all_sock() ;
+		exit(0) ;
+	}
+	else if (! is_exist(id)) {
+		printf("Invalid input\n") ;
+	}
+	else {
+		pthread_mutex_lock(&m) ;
+		turn = id ;
+		pthread_mutex_unlock(&m) ;
+	}
+}
 
 void
 handler(int sig)
 {
 	if (sig == SIGINT) {
-		print_clients() ;
-
-		int id ;
-		scanf("%d", &id) ;
-		printf(">> %d\n", id) ;
-		
-		if (id == 0) {
-			close_all_sock() ;
-			exit(0) ;
-		}
-		else if (! is_exist(id)) {
-			printf("Invalid input\n") ;
-		}
-		else {
-			pthread_mutex_lock(&m) ;
-			turn = id ;
-			pthread_mutex_unlock(&m) ;
-		}
+		pthread_mutex_lock(&m) ;
+		turn = -1 ;
+		pthread_mutex_unlock(&m) ;
+		command_mode() ;
 	}
 }
 
@@ -209,7 +217,7 @@ main(int argc, char const *argv[])
 	memset(&address, 0, sizeof(address)); 
 	address.sin_family = AF_INET; 
 	address.sin_addr.s_addr = INADDR_ANY /* the localhost*/ ; 
-	address.sin_port = htons(8080); 
+	address.sin_port = htons(8989); 
 	if (bind(listen_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
 		perror("bind failed : "); 
 		exit(1); 
