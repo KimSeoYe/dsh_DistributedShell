@@ -77,6 +77,7 @@ append (int fd)
     pthread_mutex_unlock(&m);
 }
 
+// Todo. if cannot send -> rm
 void
 remove_target (int fd)
 {
@@ -105,26 +106,38 @@ close_all_sock ()
     pthread_mutex_unlock(&m) ;
 }
 
-void
+void *
 command_mode ()
 {
-	print_clients() ;
+	while (1) {
 
-	int id ;
-	printf(">> id: ") ;
-	scanf("%d", &id) ;
-	
-	if (id == 0) {
-		close_all_sock() ;
-		exit(0) ;
-	}
-	else if (! is_exist(id)) {
-		printf("Invalid input\n") ;
-	}
-	else {
 		pthread_mutex_lock(&m) ;
-		turn = id ;
+		if (turn != -1) {
+			while (turn != -1) {
+				pthread_cond_wait(&c, &m) ;
+			}
+		}
 		pthread_mutex_unlock(&m) ;
+
+		print_clients() ;
+
+		int id ;
+		printf(">> id: ") ;
+		scanf("%d", &id) ;
+		
+		if (id == 0) {
+			close_all_sock() ;
+			exit(0) ;
+		}
+		else if (! is_exist(id)) {
+			printf("Invalid input\n") ;
+		}
+		else {
+			pthread_mutex_lock(&m) ;
+			turn = id ;
+			pthread_cond_signal(&c) ;
+			pthread_mutex_unlock(&m) ;
+		}
 	}
 }
 
@@ -134,20 +147,24 @@ handler(int sig)
 	if (sig == SIGINT) {
 		pthread_mutex_lock(&m) ;
 		turn = -1 ;
+		pthread_cond_signal(&c) ;
 		pthread_mutex_unlock(&m) ;
-		command_mode() ;
 	}
 }
 
 void *
 ui_worker ()
 {
-	signal(SIGINT, handler) ;
-	while (turn == -1) ;
-
-	printf("> turn: %d\n", turn) ;
-
 	while (1) {
+		pthread_mutex_lock(&m) ;
+		if (turn == -1) {
+			while (turn == -1) {
+				pthread_cond_wait(&c, &m) ;
+			}
+		}
+		pthread_mutex_unlock(&m) ;
+		printf("> turn: %d\n", turn) ;
+
 		char buffer[1024] = {0} ;
 		char c ;
 		int i ;
@@ -156,7 +173,7 @@ ui_worker ()
 		}
 		buffer[i] = 0x0 ;
 		int len = i + 1 ;
-		// printf("> cmd: %s\n", buffer) ;
+		printf("> cmd: %s\n", buffer) ;
 
 		pthread_mutex_lock(&m) ;
 		send_int(turn, len) ;
@@ -166,7 +183,8 @@ ui_worker ()
 
 }
 
-void recv_and_print (int sock)
+void 
+recv_and_print (int sock)
 {
     char buffer[1024] ;
 	int len ;
@@ -200,7 +218,8 @@ worker (void * ptr)
 int 
 main(int argc, char const *argv[]) 
 { 
-	// signal(SIGINT, handler) ;
+	signal(SIGINT, handler) ;
+
 	int listen_fd, new_socket ; 
 	struct sockaddr_in address; 
 	int opt = 1; 
@@ -217,11 +236,18 @@ main(int argc, char const *argv[])
 	memset(&address, 0, sizeof(address)); 
 	address.sin_family = AF_INET; 
 	address.sin_addr.s_addr = INADDR_ANY /* the localhost*/ ; 
-	address.sin_port = htons(8989); 
+	address.sin_port = htons(8999); 
 	if (bind(listen_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
 		perror("bind failed : "); 
 		exit(1); 
 	} 
+
+	/* create cmd_thr */
+	pthread_t cmd_thr ;
+	if (pthread_create(&cmd_thr, NULL, command_mode, NULL) != 0) {
+		perror("ERROR - pthread_create: ") ;
+			exit(1) ;
+	}
 
 	/* create ui_thr */
 	pthread_t ui_thr ;
