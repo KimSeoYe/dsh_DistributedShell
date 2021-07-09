@@ -80,6 +80,7 @@ append (int fd)
 }
 
 // Todo. check if the connection w/ client failed -> rm target
+// Todo. add lock
 void
 remove_target (int fd)
 {
@@ -151,26 +152,14 @@ handler(int sig)
 void *
 ui_worker ()
 {
-	// while (turn == -1) ;
-	// printf("> turn: %d\n", turn) ;
-
 	while (1) {
-
-	#ifdef DEBUG
-		printf("> turn in us_worker: %d\n", turn) ;
-	#endif
 		if (turn == -1) {
-
-	#ifdef DEBUG
-			printf("command mode\n") ;
-	#endif
 			command_mode() ;
 		}
 		else {
-	#ifdef DEBUG
-			printf("user mode\n") ;
+		#ifdef DEBUG
 			printf(">> Enter cmd: ") ;
-	#endif
+		#endif
 			char buffer[1024] = {0} ;
 			char c ;
 			int i ;
@@ -179,15 +168,14 @@ ui_worker ()
 			}
 			buffer[i] = 0x0 ;
 			int len = i + 1 ;
-	#ifdef DEBUG
+		#ifdef DEBUG
 			printf("> cmd: %s\n", buffer) ;
-	#endif
+		#endif
 
 			pthread_mutex_lock(&m) ;
 			send_int(turn, len) ;
 			send_n_data(turn, buffer, len) ;
 			pthread_mutex_unlock(&m) ;
-
 		}
 	}
 }
