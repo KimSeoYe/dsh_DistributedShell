@@ -13,14 +13,48 @@
 
 #define SOCK_MAX 16
 
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER ;
+pthread_cond_t c = PTHREAD_COND_INITIALIZER ;
+
+int turn = -1 ;
+
+void *
+ui_worker ()
+{
+	while (turn == -1) ;
+
+	printf("> turn: %d\n", turn) ;
+
+	while (1) {
+		char buffer[1024] = {0} ;
+		char c ;
+		int i ;
+		for (i = 0; (c = getc(stdin)) != '\n'; i++) {
+			buffer[i] = c ;
+		}
+		buffer[i] = 0x0 ;
+		int len = i + 1 ;
+		printf("> cmd: %s\n", buffer) ;
+
+		// Q. lock..? -> 여기서 m을 잡으면 recv하는 thread와 같은 lock을 잡아서 deadlock에 걸리는 것 같다.
+		// 그냥 보내는게 안전한가.......?
+		// pthread_mutex_lock(&m) ;
+		send_int(turn, len) ;
+		send_n_data(turn, buffer, len) ;
+		// pthread_mutex_unlock(&m) ;
+	}
+
+}
+
 void recv_and_print (int sock)
 {
     char buffer[1024] ;
+	int len ;
     int s ;
 
 	while (1) {
 		s = recv(sock, buffer, 1024, 0) ;
-		if (strcmp(buffer, "$end$") == 0) break ;	// Todo. check...?
+		buffer[s] = 0x0 ;
 		if (s > 0) {
 			printf("%s", buffer) ;
 		}
@@ -32,21 +66,15 @@ worker (void * ptr)
 {
 	int conn = * ((int *) ptr) ;
 
-    while (1) {
-        char buffer[1024] = {0} ;
-        char c ;
-        int i = 0 ;
-        for (i; (c = getc(stdin)) != '\n'; i++) {
-            buffer[i] = c ;
-        }
-        buffer[i] = 0x0 ;
+	// Todo. 
+	pthread_mutex_lock(&m) ;
+	turn = conn ;
+	pthread_mutex_unlock(&m) ;
 
-		// send_int(conn, i) ;
-		int len = i + 1 ;
-		send_int(conn, len) ;
-		// send_string(conn, buffer) ;
-		send_n_data(conn, buffer, len) ;
-        // recv_and_print(conn) ;
+    while (1) {
+		pthread_mutex_lock(&m) ;
+        recv_and_print(turn) ;
+		pthread_mutex_unlock(&m) ;
     }
 
     close(conn) ;
@@ -77,6 +105,13 @@ main(int argc, char const *argv[])
 		perror("bind failed : "); 
 		exit(1); 
 	} 
+
+	/* create ui_thr */
+	pthread_t ui_thr ;
+	if (pthread_create(&ui_thr, NULL, ui_worker, NULL) != 0) {
+		perror("ERROR - pthread_create: ") ;
+			exit(1) ;
+	}
 
 	while (1) {
 		if (listen(listen_fd, SOCK_MAX /* the size of waiting queue*/) < 0) { 

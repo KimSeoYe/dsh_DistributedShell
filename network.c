@@ -23,7 +23,7 @@ recv_n_data (int sock, int n)
 
     int len = 0 ;
     int s ;
-    if (len < n && (s = recv(sock, buf, n, 0)) > 0) {
+    while (len < n && (s = recv(sock, buf, n, 0)) > 0) {
         if (data == 0x0) {
             data = strdup(buf) ;
             len = s ;
@@ -86,7 +86,7 @@ void
 send_string (int sock, char * data)
 {
 	int s ;
-    int n = strlen(data) + 1 ; // include 0x0
+    int n = strlen(data) ; // include 0x0
 
 	while (1) {
 		s = send(sock, data, n, MSG_NOSIGNAL) ;	
@@ -112,7 +112,7 @@ recv_string (int sock)
     data = 0x0 ;
 
     if ((s = recv(sock, buffer, 1024, 0)) > 0) {
-        // buffer[s] = 0x0 ;
+        buffer[s] = 0x0 ;
         data = strdup(buffer) ;
     }
 

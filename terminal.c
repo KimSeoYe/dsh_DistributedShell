@@ -13,23 +13,59 @@
 
 #include "network.h"
 
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER ;
+pthread_cond_t c = PTHREAD_COND_INITIALIZER ;
+
 int sock_fd ;
 
-char * cmd ;
+// char * cmd = 0x0 ;
+char cmd[1024] = "" ;
+int cmd_in = 0 ;
+
+void *
+listen_cmd ()
+{  
+    // https://www.joinc.co.kr/w/man/3/pthread_cancel 
+    
+    while(1) {
+        int cmd_len = recv_int(sock_fd) ;
+
+        pthread_mutex_lock(&m) ;
+        char * rcv_cmd = recv_n_data(sock_fd, cmd_len) ; 
+        strcpy(cmd, rcv_cmd) ;  // Todo. modify recv_n_data
+        printf("> cmd: %s\n", cmd) ;
+        pthread_mutex_unlock(&m) ;
+
+        pthread_mutex_lock(&m) ;
+        cmd_in = 1 ;
+        pthread_cond_signal(&c) ;
+        pthread_mutex_unlock(&m) ;
+    }
+}
 
 char **
 parse_cmd(char * cmd)
 {
     char * ptr = 0x0 ;
     char * next_ptr = 0x0 ; 
-    char ** cmd_argv = (char **) malloc(sizeof(char *) * 1) ;
-  
+    char ** cmd_argv = (char **) malloc(sizeof(char *) * 1) ;   // Todo. remove malloc
+
+    pthread_mutex_lock(&m) ;
+    if (cmd_in == 0) {
+        printf("> Waiting...\n") ;
+        while(cmd_in == 0)
+            pthread_cond_wait(&c, &m) ;  
+    }
+    pthread_mutex_unlock(&m) ;
+
+    pthread_mutex_lock(&m) ;    // Todo. Q. is it better to split the lock..?
     ptr = strtok_r(cmd, " ", &next_ptr) ;
     for (int i = 0; ptr; i++) {
         cmd_argv = (char**) realloc(cmd_argv, sizeof(char *) * (i + 1)) ;
         cmd_argv[i] = strdup(ptr) ;
         ptr = strtok_r(NULL, " ", &next_ptr) ;
     }
+    pthread_mutex_unlock(&m) ;
 
     return cmd_argv ;
 }
@@ -56,22 +92,9 @@ parent_proc ()
     while ((s = read(pipes[0], buf, 1023)) > 0) {
         buf[s] = 0x0 ;
         printf("%s", buf) ;
-        // send...
-        send_string(sock_fd, buf) ;
+        send_n_data(sock_fd, buf, s) ;
 	}
     close(pipes[0]) ;
-
-    send_string(sock_fd, "$end$") ;
-}
-
-void *
-listen_cmd ()
-{  
-    while(1) {
-        int cmd_len = recv_int(sock_fd) ;
-        cmd = recv_n_data(sock_fd, cmd_len) ; 
-        printf("> cmd: %s\n", cmd) ;
-    }
 }
 
 void *
@@ -99,9 +122,15 @@ worker ()
         }
         int exit_code ;
         pid_t term_pid = wait(&exit_code) ;
+
+        pthread_mutex_lock(&m) ;
+        cmd_in = 0 ;
+        pthread_mutex_unlock(&m) ;
+
         printf("Execution end: %d %d\n", term_pid, exit_code) ;
     }
 }
+
 
 void
 handler (int sig)
@@ -144,19 +173,21 @@ main(int argc, char const *argv[])
 		exit(1) ;
 	}
 
+
+
     pthread_t cmd_thr ;
     if (pthread_create(&cmd_thr, NULL, listen_cmd, NULL) != 0) {
         perror("pthread_create: ") ;
         exit(1) ;
     }
 
-    // pthread_t w_thr ;
-    // if (pthread_create(&w_thr, NULL, worker, NULL) != 0) {
-    //     perror("pthread_create: ") ;
-    //     exit(1) ;
-    // }
+    pthread_t w_thr ;
+    if (pthread_create(&w_thr, NULL, worker, NULL) != 0) {
+        perror("pthread_create: ") ;
+        exit(1) ;
+    }
 
     pthread_join(cmd_thr, NULL) ;
-    // pthread_join(w_thr, NULL) ;
+    pthread_join(w_thr, NULL) ;
 
 } 
