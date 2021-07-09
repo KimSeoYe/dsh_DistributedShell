@@ -135,6 +135,7 @@ command_mode ()
 		else {
 			pthread_mutex_lock(&m) ;
 			turn = id ;
+			printf("> change id to %d\n", turn) ;
 			pthread_cond_signal(&c) ;
 			pthread_mutex_unlock(&m) ;
 		}
@@ -156,6 +157,7 @@ void *
 ui_worker ()
 {
 	while (1) {
+
 		pthread_mutex_lock(&m) ;
 		if (turn == -1) {
 			while (turn == -1) {
@@ -173,7 +175,7 @@ ui_worker ()
 		}
 		buffer[i] = 0x0 ;
 		int len = i + 1 ;
-		printf("> cmd: %s\n", buffer) ;
+		// printf("> cmd: %s\n", buffer) ;
 
 		pthread_mutex_lock(&m) ;
 		send_int(turn, len) ;
@@ -208,7 +210,8 @@ worker (void * ptr)
 	append(conn) ;
 
     while (1) {
-		recv_and_print(conn) ;
+		if (conn == turn) 
+			recv_and_print(conn) ;
     }
 
     close(conn) ;
