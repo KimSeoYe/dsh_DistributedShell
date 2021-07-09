@@ -15,18 +15,18 @@
 
 #define DEBUG
 
-char *
-recv_n_data (int sock, int n)
+void
+recv_n_data (int sock, char * data, int n)
 {
-    char * data = 0x0 ;
     char buf[1024] ;
-
+    int is_first = 1 ;
     int len = 0 ;
     int s ;
     while (len < n && (s = recv(sock, buf, n, 0)) > 0) {
-        if (data == 0x0) {
-            data = strdup(buf) ;
+        if (is_first) {
+            strncpy(data, buf, s) ;
             len = s ;
+            is_first = 0 ;
         }
         else {
             data = realloc(data, len + s + 1) ;
@@ -35,8 +35,6 @@ recv_n_data (int sock, int n)
             len += s ;
         }
     }
-
-    return data ;
 }
 
 void

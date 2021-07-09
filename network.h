@@ -1,5 +1,7 @@
 
-char * recv_n_data (int sock, int n) ;
+// char * recv_n_data (int sock, int n) ;
+
+void recv_n_data (int sock, char * data, int n) ;
 
 void send_n_data (int sock, char * data, size_t len) ;
 

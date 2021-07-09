@@ -31,8 +31,7 @@ listen_cmd ()
         int cmd_len = recv_int(sock_fd) ;
 
         pthread_mutex_lock(&m) ;
-        char * rcv_cmd = recv_n_data(sock_fd, cmd_len) ; 
-        strcpy(cmd, rcv_cmd) ;  // Todo. modify recv_n_data
+        recv_n_data(sock_fd, cmd, cmd_len) ;
         printf("> cmd: %s\n", cmd) ;
         pthread_mutex_unlock(&m) ;
 
@@ -48,7 +47,7 @@ parse_cmd(char * cmd)
 {
     char * ptr = 0x0 ;
     char * next_ptr = 0x0 ; 
-    char ** cmd_argv = (char **) malloc(sizeof(char *) * 1) ;   // Todo. remove malloc
+    char ** cmd_argv = 0x0 ;
 
     pthread_mutex_lock(&m) ;
     if (cmd_in == 0) {
