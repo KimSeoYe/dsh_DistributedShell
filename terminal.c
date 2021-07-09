@@ -114,8 +114,13 @@ listen_cmd ()
 {  
     while(1) {
         int cmd_len = recv_int(sock_fd) ;
-        char recv_cmd[64] ;
+        if (cmd_len == -1) {
+            perror("connection failed") ; 
+            close(sock_fd) ;
+            exit(1) ;
+        }
 
+        char recv_cmd[64] ;
         recv_n_data(sock_fd, recv_cmd, cmd_len) ;
         printf("> cmd: %s\n", recv_cmd) ;
 

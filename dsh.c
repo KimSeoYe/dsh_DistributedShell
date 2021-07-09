@@ -134,7 +134,7 @@ handler(int sig)
 void *
 ui_worker ()
 {
-	// signal(SIGINT, handler) ;
+	signal(SIGINT, handler) ;
 	while (turn == -1) ;
 
 	printf("> turn: %d\n", turn) ;
@@ -182,7 +182,7 @@ worker (void * ptr)
 	append(conn) ;
 
     while (1) {
-        recv_and_print(conn) ;
+		recv_and_print(conn) ;
     }
 
     close(conn) ;
@@ -192,9 +192,7 @@ worker (void * ptr)
 int 
 main(int argc, char const *argv[]) 
 { 
-	signal(SIGINT, handler) ;
-
-
+	// signal(SIGINT, handler) ;
 	int listen_fd, new_socket ; 
 	struct sockaddr_in address; 
 	int opt = 1; 
