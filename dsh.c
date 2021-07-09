@@ -12,6 +12,8 @@
 
 #include "network.h"
 
+// #define DEBUG
+
 #define SOCK_MAX 16
 
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER ;
@@ -110,11 +112,11 @@ close_all_sock ()
 void *
 command_mode() 
 {
+#ifdef DEBUG
 	printf(">> Enter ID: ") ;
+#endif
 	int id ;
-	char blank ;
 	scanf("%d", &id) ;
-	scanf("%c", &blank) ;
 	printf("> ID: %d\n", id) ;
 	
 	if (id == 0) {
@@ -138,7 +140,9 @@ handler(int sig)
 		print_clients() ;
 		pthread_mutex_lock(&m) ;
 		turn = -1 ;
+#ifdef DEBUG
 		printf("> turn in handler: %d\n", turn) ;
+#endif
 		pthread_mutex_unlock(&m) ;
 		// command_mode() ;
 	}
@@ -151,15 +155,22 @@ ui_worker ()
 	// printf("> turn: %d\n", turn) ;
 
 	while (1) {
-		
+
+	#ifdef DEBUG
 		printf("> turn in us_worker: %d\n", turn) ;
+	#endif
 		if (turn == -1) {
+
+	#ifdef DEBUG
 			printf("command mode\n") ;
+	#endif
 			command_mode() ;
 		}
 		else {
+	#ifdef DEBUG
 			printf("user mode\n") ;
 			printf(">> Enter cmd: ") ;
+	#endif
 			char buffer[1024] = {0} ;
 			char c ;
 			int i ;
@@ -168,7 +179,9 @@ ui_worker ()
 			}
 			buffer[i] = 0x0 ;
 			int len = i + 1 ;
+	#ifdef DEBUG
 			printf("> cmd: %s\n", buffer) ;
+	#endif
 
 			pthread_mutex_lock(&m) ;
 			send_int(turn, len) ;
