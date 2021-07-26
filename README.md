@@ -4,12 +4,16 @@
 
 ```
 $ make
-$ ./dsh // server - manage the terminals
-$ ./terminal // clients
+$ ./dsh 
+$ ./terminal
 ```
 
-## Description
+- dsh : The server. You can manage the multipel terminals using dsh.
+- terminal : clients. You can created multiple terminals.
+- If the **dsh** selects the desired terminal and sends the command, the **terminal** executes the command and sends the result to the dsh.
 
+
+## Description
 
 ### dsh(server)
 
