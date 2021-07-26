@@ -1,5 +1,10 @@
 # dsh : Distributed Shell
 
+This is a kind of multi-shell. You can use it to manage multiple terminals in a single shell.<br>
+You can select the terminal by pressing Ctrl+C then choosing the id of the terminal on the dsh.<br>
+If you select a terminal and sends the command on dsh, the terminal executes the command and sends the result to the dsh.<br>
+If a dsh sends a particular character($) while the terminal is executing, it can terminate the execution of the command.<br>
+
 ## How to build and use
 
 ```
@@ -10,8 +15,6 @@ $ ./terminal
 
 - dsh : The server. You can manage the multipel terminals using dsh.
 - terminal : clients. You can created multiple terminals.
-- If the **dsh** selects the desired terminal and sends the command, the **terminal** executes the command and sends the result to the dsh.
-
 
 ## Description
 
@@ -33,7 +36,6 @@ $ ./terminal
 - 실행중인 명령이 있는데 dsh로부터 그 실행을 종료하라는 명령이 왔을 경우($) 명령을 실행중인 프로세스를 종료한다.
 - 명령어를 실행하는 쓰레드는 새로운 프로세스를 fork()하여 excevp()를 사용해 명령어를 실행하고, parent process가 그 결과를 pipe를 통해 받아온다.
 - pipe를 통해 실행 결과를 읽으며 자신의 화면에 출력하고 dsh에 전송한다.
-
 
 ### more…
 
